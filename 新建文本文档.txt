@@ -1,0 +1,50 @@
+<script>
+import { fabric } from 'fabric';
+
+export default {
+  data() {
+    return {
+      canvas: null,
+      image: null,
+      scrollPosition: 0,
+      maxScroll: 0
+    };
+  },
+  mounted() {
+    this.canvas = new fabric.Canvas(this.$refs.canvas);
+    this.loadImage();
+  },
+  methods: {
+    loadImage() {
+      fabric.Image.fromURL('path/to/your-image.jpg', (img) => {
+        this.image = img;
+        this.canvas.add(img);
+
+        // 设置最大滚动值为图片宽度减去画布宽度
+        this.maxScroll = img.width - this.canvas.width;
+      });
+    },
+    scrollImage() {
+      if (this.image) {
+        // 根据滚动条位置设置图片位置
+        this.image.left = -this.scrollPosition;
+        this.canvas.renderAll();
+      }
+    }
+  }
+};
+</script>
+3. 样式和布局
+根据需要为 canvas 和滑动条添加 CSS 样式，确保它们在页面上正确显示。
+
+css
+Copy code
+<style>
+canvas {
+  border: 1px solid #ccc;
+}
+input[type=range] {
+  width: 100%;
+  margin-top: 10px;
+}
+</style>
