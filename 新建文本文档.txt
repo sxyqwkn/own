@@ -1,50 +1,198 @@
+<template>
+  <div>
+    <div style="display: flex; justify-content: center; margin-bottom: 20px;">
+      <canvas ref="canvas" :width="maxWidth" :height="maxHeight" style="border: 1px solid #ccc;"></canvas>
+    </div>
+    <input type="range" min="0" :max="maxScroll" v-model="scrollPosition" @input="scrollImage" style="width: 40%;"/>
+    <input type="number" v-model="speed" placeholder="スビート" style="width: 40px;"/>
+    <button @click="moveLeft">戻し</button>
+    <button @click="stopMoving">停止</button>
+    <button @click="moveRight">送り</button>
+    <button @click="copyToClipboard">コピー</button>
+    
+  </div>
+</template>
 <script>
 import { fabric } from 'fabric';
 
 export default {
   data() {
     return {
+
+      // canvas
       canvas: null,
-      image: null,
+
+      // 今の図
+      img: null,
+
+      // canvasのサイズ
+      maxWidth: 1100,
+      maxHeight: 600,
+
+      // チャート読み込み
+      chertUrl: [],
+      chertImg: [],
+      chertContext: null,
+      chertNum: 0,
+
+      // 始めの日付
+      startYear: 0,
+      startMonth: 0,
+      startDay: 0,
+
+      // 今の日付
+      year: 0,
+      month: 0,
+      day: 0,
+
+      // スクロール
       scrollPosition: 0,
-      maxScroll: 0
+      maxScroll: 0,
+
+      // 再生
+      speed: 1,          
+      intervalId: null
     };
   },
   mounted() {
-    this.canvas = new fabric.Canvas(this.$refs.canvas);
-    this.loadImage();
+
+    // 一時データ
+    this.chertUrl.push('C0801.png');
+    this.chertUrl.push('C0802.png');
+    this.chertUrl.push('C0803.png');
+    this.chertUrl.push('C0804.png');
+    this.chertUrl.push('C0805.png');
+
+
+    this.startYear = 2023;
+    this.startMonth = 5;
+    this.startDay = 23;
+
+    // 初期化
+    this.year = this.startYear;
+    this.month = this.startMonth;
+    this.day = this.startDay;
+    
+    this.chertNum = 0;
+
+    // 右クリックレスナー
+    this.canvas = new fabric.Canvas(this.$refs.canvas, {fireRightClick: true});
+
+    // 右クリックメニュー禁止
+    this.canvas.wrapperEl.oncontextmenu = () => false;
+    this.loadImage(this.chertNum);
   },
   methods: {
-    loadImage() {
-      fabric.Image.fromURL('path/to/your-image.jpg', (img) => {
-        this.image = img;
-        this.canvas.add(img);
 
-        // 设置最大滚动值为图片宽度减去画布宽度
-        this.maxScroll = img.width - this.canvas.width;
+    /** 
+     * 図のロード
+    */
+    loadImage(chertNum) {
+
+      const images = require.context('@/assets/', false, /\.png$/);
+      fabric.Image.fromURL(images('./' + this.chertUrl[chertNum]), (img) => {
+
+        this.img = img;
+
+        // 初期ズーム
+        let scale = this.maxHeight / img.height;
+        this.img.scale(scale);
+
+        // セレクト不可
+        this.img.selectable = false;
+
+        // canvasに描き
+        this.canvas.add(this.img);
+        
+        // スクロール最大値設定
+        this.maxScroll = this.img.width * scale - this.canvas.width;
       });
     },
-    scrollImage() {
-      if (this.image) {
-        // 根据滚动条位置设置图片位置
-        this.image.left = -this.scrollPosition;
-        this.canvas.renderAll();
-      }
-    }
-  }
-};
-</script>
-3. 样式和布局
-根据需要为 canvas 和滑动条添加 CSS 样式，确保它们在页面上正确显示。
 
-css
-Copy code
-<style>
-canvas {
-  border: 1px solid #ccc;
+    /** 
+     * スクロール
+    */
+    scrollImage() {
+
+        this.img.left = -this.scrollPosition;
+        this.canvas.renderAll();
+    },
+
+    /** 
+     * 送り
+    */
+    moveRight() {
+      this.stopMoving();
+      this.intervalId = setInterval(() => {
+        if (this.scrollPosition < this.maxScroll) {
+
+          console.log(this.maxScroll);
+          console.log(this.scrollPosition);
+          console.log(parseFloat(this.scrollPosition));
+
+          this.scrollPosition = parseFloat(this.scrollPosition) + this.speed;
+
+          this.img.left = -this.scrollPosition;
+          this.canvas.renderAll();
+        } else {
+          this.stopMoving();
+        }
+      }, 100);
+    },
+    
+    /** 
+     * 戻し
+    */
+    moveLeft() {
+      this.stopMoving(); 
+      this.intervalId = setInterval(() => {
+        if (this.scrollPosition > 0) {
+          this.scrollPosition =  this.scrollPosition - this.speed;
+
+          this.img.left = -this.scrollPosition;
+          this.canvas.renderAll();
+        } else {
+          this.stopMoving();
+        }
+      }, 100);
+    },
+
+    /** 
+     * 停止
+    */
+    stopMoving() {
+      if (this.intervalId) {
+        clearInterval(this.intervalId);
+        this.intervalId = null;
+      }
+    },
+
+    /** 
+     * クリップボードコピー
+    */
+    async copyToClipboard() {
+
+      // URLに転換
+      const dataUrl = this.canvas.toDataURL();
+
+      try {
+
+        // URLをBlobに転換
+        const blob = await (await fetch(dataUrl)).blob();
+
+        // クリップボードにロード
+        const item = new ClipboardItem({ "image/png": blob });
+        await navigator.clipboard.write([item]);
+
+        alert('クリップボードにコビーしました');
+      } catch (error) {
+
+        // エラー
+        alert('エラー');
+        console.log(error);
+      }
+    },
+
+  }
 }
-input[type=range] {
-  width: 100%;
-  margin-top: 10px;
-}
-</style>
+</script>
