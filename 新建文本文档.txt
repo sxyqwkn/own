@@ -1,9 +1,9 @@
 <template>
   <div>
     <div class="canvas-container">
-      <canvas ref="canvas" :width="maxWidth" :height="maxHeight" class="grid"></canvas>
+      <canvas ref="canvas" :width="maxWidth" :height="maxHeight"></canvas>
     </div>
-    <input type="range" min="0" :max="maxScroll" v-model="scrollPosition" @input="scrollImage" class="range"/>
+    <input type="range" min="0" :max="maxScroll" v-model="scrollPosition" class="range"/>
     <input type="number" v-model="speed" placeholder="スビート" style="width: 40px;"/>
     <button @click="moveLeft">戻し</button>
     <button @click="stopMoving">停止</button>
@@ -27,18 +27,15 @@ export default {
       maxWidth: 1100,
       maxHeight: 600,
 
+      // 送り機能とかで、予めロードする画像の範囲
+      Preload: 100,
+
       /** 
        * 読み込みデータ
       */
       // チャート
-      chertUrl: [],
-      chertImg: [],
-      chertContext: null,
+      chert: [],
       chertNum: 0,
-
-      // 日付
-      startDate: null,
-      endDate: null,
 
       /** 
       * パラメータ
@@ -47,8 +44,10 @@ export default {
 
       // canvas
       canvas: null,
-      img: null,
+      overImg: null,
+      loadedImg: [],
       timeLine: null,
+      timeLineImg: null,
       gridLine: null,
 
       // 今の日付
@@ -65,30 +64,62 @@ export default {
   },
   mounted() {
 
-    // 一時データ
-    this.chertUrl.push('C0801.png');
-    this.chertUrl.push('C0802.png');
-    this.chertUrl.push('C0803.png');
-    this.chertUrl.push('C0804.png');
-    this.chertUrl.push('C0805.png');
-
-    this.startDate = new Date(2023,10,30,0,0,0);
-    this.endDate = new Date(2023,11,11,0,0,0);
+    // 一時データ (要求：インデックスが順番)
+    // LEN = 47082
+    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
 
     // 初期化
-    this.nowDate = this.startDate;
+    this.nowDate = this.chert[0].startDate;
     this.chertNum = 0;
+
+    // スクロール最大値設定
+    this.chert.forEach((item) => {
+      item.leftPosition = this.maxScroll
+      this.maxScroll += item.len * (this.maxHeight / item.height);
+    });
+    this.maxScroll -= this.maxWidth;
+
+    // 0.05MB
+    fabric.minCacheSideLimit = 52429;
 
     // canvasのロード
     this.canvas = new fabric.Canvas(this.$refs.canvas, {fireRightClick: true});
     this.canvas.wrapperEl.oncontextmenu = () => false;
 
-    // 図とタイムラインのロード
+    // 最初の図とタイムラインのロード
     this.loadImage(this.chertNum).then(() => {
       this.createTimeline();
       this.createGridLines(100,40);
     });
 
+    // プリロード
+    for (let i = 0; i < this.chert.length; i++) {
+      if (this.chert[i].leftPosition < this.maxWidth + this.Preload) {
+        this.loadImage(i);
+      }
+      else {
+        break;
+      }
+    }
   },
   methods: {
 
@@ -98,20 +129,43 @@ export default {
     loadImage(chertNum) {
 
       return new Promise((resolve) => {
-        fabric.Image.fromURL(this.images('./' + this.chertUrl[chertNum]), (img) => {
+        fabric.Image.fromURL(this.images('./' + this.chert[chertNum].url), (img) => {
+
           // 初期ズーム
-          let scale = this.maxHeight / img.height;
-          img.scale(scale);
+          img.scale(this.maxHeight / img.height);
 
-          // セレクト不可
-          img.selectable = false;
+          if(this.overImg) {
+
+            img.set({
+              left: this.chert[chertNum].leftPosition + this.overImg.left,
+              selectable: false
+            });
+
+            let group = new fabric.Group([this.overImg, img]);
+            group.selectable = false;
+
+            this.overImg = group
+          }
+          else {
+
+            img.set({
+              left: this.chert[chertNum].leftPosition,
+              selectable: false
+            });
+
+            img.selectable = false;
+            this.overImg = img
+          }
           
-          // スクロール最大値設定
-          this.maxScroll = img.width * scale - this.canvas.width;
-
-          this.img = img;
+          this.loadedImg.push({num: chertNum, img: img})
           this.canvas.add(img);
-          img.sendToBack();
+
+          if(this.timeLineImg) {
+            this.timeLineImg.bringToFront();
+          }
+          if(this.gridLine) {
+            this.gridLine.bringToFront();
+          }
 
           resolve();
         });
@@ -125,8 +179,8 @@ export default {
 
       // ライン作成
       let scale = d3.scaleTime()
-        .domain([this.startDate, this.endDate])
-        .range([0, this.img.width - 60]);
+        .domain([this.chert[0].startDate, this.chert[this.chert.length -1].endDate])
+        .range([0, this.maxScroll + this.maxWidth]);
 
       // 尺度作成
       let axis = d3.axisBottom(scale)
@@ -139,10 +193,12 @@ export default {
       // 尺度文字の位置を調整
       svg.selectAll('.tick text')
         .style('text-anchor', 'start')
+        .attr('dx', '0.5em');
 
       svg.selectAll('.tick text')
         .filter((d, i, nodes) => i === nodes.length - 1)
         .style('text-anchor', 'end')
+        .attr('dx', '-0.5em');
 
       // svgオブジェクトを文字列に変更
       let svgString = new XMLSerializer().serializeToString(svg.node());
@@ -164,7 +220,8 @@ export default {
         });
 
         // canvasに描き
-        this.timeLine = group;
+        this.timeLineImg = group;
+        this.timeLine = svg;
         this.canvas.add(group);
       });
     },
@@ -184,13 +241,13 @@ export default {
       };
 
       // 縦
-      for (let i = gridWidth; i < this.img.width; i += gridWidth) {
-        gridLines.push(new fabric.Line([i, 0, i, this.img.height], opt));
+      for (let i = gridWidth; i <  this.maxScroll + this.maxWidth; i += gridWidth) {
+        gridLines.push(new fabric.Line([i, 0, i, this.overImg.height], opt));
       }
 
       // 横
-      for (let i = gridHeight; i < this.img.height; i += gridHeight) {
-        gridLines.push(new fabric.Line([0, i, this.img.width, i], opt));
+      for (let i = gridHeight; i < this.overImg.height; i += gridHeight) {
+        gridLines.push(new fabric.Line([0, i, this.maxScroll + this.maxWidth, i], opt));
       }
 
       // fabricのオプション
@@ -209,10 +266,49 @@ export default {
     */
     scrollImage() {
 
-        this.img.left = -this.scrollPosition;
-        this.timeLine.left = -this.scrollPosition;
-        this.gridLine.left = -this.scrollPosition;
-        this.canvas.renderAll();
+      // 前スクロール
+      if(this.overImg.left > -this.scrollPosition) {
+
+        for (let i = this.chertNum + 1; i < this.chert.length; i++) {
+
+          if (this.chert[i].leftPosition < parseFloat(this.scrollPosition) + this.maxWidth + this.Preload) {
+            if (i == this.chert.length - 1 || this.chert[i + 1].leftPosition > parseFloat(this.scrollPosition)) {
+
+              this.chertNum = i
+              if (!this.loadedImg.some(item => item.num == i)) {
+                this.loadImage(i);
+              }
+              if (!this.loadedImg.some(item => item.num == i - 1)) {
+                this.loadImage(i - 1);
+              }
+            }
+          }
+        }
+      }
+
+      // 後ろスクロール
+      else {
+        for (let i = this.chertNum - 1; i >= 0; i--) {
+
+          if (this.chert[i].leftPosition < parseFloat(this.scrollPosition) + this.maxWidth + this.Preload) {
+            if (i == this.chert.length - 1 || this.chert[i + 1].leftPosition > parseFloat(this.scrollPosition)) {
+
+              this.chertNum = i
+              if (!this.loadedImg.some(item => item.num == i)) {
+                this.loadImage(i);
+              }
+              if (i != 0 && !this.loadedImg.some(item => item.num == i - 1)) {
+                this.loadImage(i - 1);
+              }
+            }
+          }
+        }
+      }
+
+      this.overImg.left = -this.scrollPosition;
+      this.timeLineImg.left = -this.scrollPosition;
+      this.gridLine.left = -this.scrollPosition;
+      this.canvas.renderAll();
     },
 
     /** 
@@ -225,11 +321,8 @@ export default {
 
           // 文字列を小数に変更して計算
           this.scrollPosition = parseFloat(this.scrollPosition) + this.speed;
-
-          this.img.left = -this.scrollPosition;
-          this.timeLine.left = -this.scrollPosition;
-          this.gridLine.left = -this.scrollPosition;
-          this.canvas.renderAll();
+          this.scrollImage();
+          
         } else {
           this.stopMoving();
         }
@@ -245,11 +338,8 @@ export default {
         if (this.scrollPosition > 0) {
 
           this.scrollPosition =  this.scrollPosition - this.speed;
+          this.scrollImage();
 
-          this.img.left = -this.scrollPosition;
-          this.timeLine.left = -this.scrollPosition;
-          this.gridLine.left = -this.scrollPosition;
-          this.canvas.renderAll();
         } else {
           this.stopMoving();
         }
@@ -292,6 +382,12 @@ export default {
       }
     },
 
+  },
+
+  watch: {
+    scrollPosition() {
+      this.scrollImage();
+    }
   }
 }
 </script>
@@ -304,6 +400,7 @@ export default {
   margin-bottom: 20px;
 }
 
+/* 
 .grid {
   border: 1px solid #ccc;
   background-size: 50px 50px;
@@ -311,6 +408,7 @@ export default {
     linear-gradient(to right, gray 1px, transparent 1px),
     linear-gradient(to bottom, gray 1px, transparent 1px);
 }
+*/
 
 .range {
   width: 40%;
