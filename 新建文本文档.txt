@@ -7,8 +7,10 @@
     <input type="number" v-model="speed" placeholder="スビート" style="width: 40px;"/>
     <button @click="moveLeft">戻し</button>
     <button @click="stopMoving">停止</button>
-    <button @click="moveRight">送り</button>
-    <button @click="copyToClipboard">コピー</button>
+    <button @click="moveRight">送り</button> |
+    <button @click="copyToClipboard">コピー</button> |
+    <input type="date" :min="minDate" :max="maxDate" v-model="selectedDate"/>
+    <button @click="goByDate">Go</button>
     
   </div>
 </template>
@@ -27,6 +29,10 @@ export default {
       maxWidth: 1100,
       maxHeight: 600,
 
+      // ズームのリミット
+      maxZoom: 20,
+      minZoom: 0.1,
+
       // 送り機能とかで、予めロードする画像の範囲
       Preload: 100,
 
@@ -41,6 +47,7 @@ export default {
       * パラメータ
       */
       images: require.context('@/assets/', false, /\.png$/),
+      isTimePosMode: false,
 
       // canvas
       canvas: null,
@@ -50,8 +57,10 @@ export default {
       timeLineImg: null,
       gridLine: null,
 
-      // 今の日付
-      nowDate: null,
+      // 日付選択用
+      minDate: "1999-12-31",
+      maxDate: "1999-12-31",
+      selectedDate: "1999-12-31",
 
       // スクロール
       scrollPosition: 0,
@@ -76,26 +85,20 @@ export default {
     this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
     this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
     this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
+    
 
     // 初期化
-    this.nowDate = this.chert[0].startDate;
     this.chertNum = 0;
+    this.minDate = this.chert[0].startDate.toLocaleDateString('ja-JP').replaceAll('/','-');
+    this.maxDate = this.chert[this.chert.length -1].endDate.toLocaleDateString('ja-JP').replaceAll('/','-');
+    this.selectedDate = this.minDate
 
     // スクロール最大値設定
     this.chert.forEach((item) => {
       item.leftPosition = this.maxScroll
       this.maxScroll += item.len * (this.maxHeight / item.height);
     });
+    console.log(this.maxScroll);
     this.maxScroll -= this.maxWidth;
 
     // 0.05MB
@@ -120,6 +123,8 @@ export default {
         break;
       }
     }
+
+    this.setupEvents();
   },
   methods: {
 
@@ -193,12 +198,16 @@ export default {
       // 尺度文字の位置を調整
       svg.selectAll('.tick text')
         .style('text-anchor', 'start')
+        .style('fill', '#000')
         .attr('dx', '0.5em');
 
       svg.selectAll('.tick text')
         .filter((d, i, nodes) => i === nodes.length - 1)
         .style('text-anchor', 'end')
         .attr('dx', '-0.5em');
+
+      svg.selectAll('.domain, .tick line')
+        .style('stroke', '#000');
 
       // svgオブジェクトを文字列に変更
       let svgString = new XMLSerializer().serializeToString(svg.node());
@@ -221,7 +230,7 @@ export default {
 
         // canvasに描き
         this.timeLineImg = group;
-        this.timeLine = svg;
+        this.timeLine = scale;
         this.canvas.add(group);
       });
     },
@@ -242,11 +251,11 @@ export default {
 
       // 縦
       for (let i = gridWidth; i <  this.maxScroll + this.maxWidth; i += gridWidth) {
-        gridLines.push(new fabric.Line([i, 0, i, this.overImg.height], opt));
+        gridLines.push(new fabric.Line([i, 0, i, this.overImg.height * (this.maxHeight / this.overImg.height)], opt));
       }
 
       // 横
-      for (let i = gridHeight; i < this.overImg.height; i += gridHeight) {
+      for (let i = gridHeight; i < this.overImg.height * (this.maxHeight / this.overImg.height); i += gridHeight) {
         gridLines.push(new fabric.Line([0, i, this.maxScroll + this.maxWidth, i], opt));
       }
 
@@ -322,7 +331,7 @@ export default {
           // 文字列を小数に変更して計算
           this.scrollPosition = parseFloat(this.scrollPosition) + this.speed;
           this.scrollImage();
-          
+
         } else {
           this.stopMoving();
         }
@@ -357,6 +366,29 @@ export default {
     },
 
     /** 
+     * 時間指定
+    */
+    goByDate() {
+
+      if(this.selectedDate) {
+
+        let parts = this.selectedDate.split('-');
+        let year = parseInt(parts[0], 10);
+        let month = parseInt(parts[1], 10) - 1;
+        let day = parseInt(parts[2], 10);
+
+        if(this.timeLine(new Date(year,month,day,0,0,0)) <= this.maxScroll) {
+          this.scrollPosition = this.timeLine(new Date(year,month,day,0,0,0));
+          this.scrollImage();
+        }
+        else {
+          this.scrollPosition = this.maxScroll;
+          this.scrollImage();
+        }
+      }
+    },
+
+    /** 
      * クリップボードコピー
     */
     async copyToClipboard() {
@@ -370,7 +402,7 @@ export default {
         const blob = await (await fetch(dataUrl)).blob();
 
         // クリップボードにロード
-        const item = new ClipboardItem({ "image/png": blob });
+        const item = new ClipboardItem({ 'image/png': blob });
         await navigator.clipboard.write([item]);
 
         alert('クリップボードにコビーしました');
@@ -380,6 +412,36 @@ export default {
         alert('エラー');
         console.log(error);
       }
+    },
+
+    /** 
+     * レスナー
+    */
+    setupEvents() {
+
+      // mouse:wheel マウスホイール
+      this.canvas.on('mouse:wheel', (opt) => {
+
+          // パラメータ取得
+          let delta = opt.e.deltaY;
+          let zoom = this.canvas.getZoom();
+
+          // 倍率計算
+          zoom *= 0.999 ** delta;
+          if (zoom > this.maxZoom) {
+            zoom = this.maxZoom;
+          }
+          if (zoom < this.minZoom) {
+            zoom = this.minZoom;
+          }
+
+          // マウス中心でズーム
+          this.canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+
+          // デフォルトイベントとバブリング禁止
+          opt.e.preventDefault();
+          opt.e.stopPropagation();
+      });
     },
 
   },
