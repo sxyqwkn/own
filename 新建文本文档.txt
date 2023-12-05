@@ -33,6 +33,9 @@ export default {
       maxZoom: 20,
       minZoom: 0.1,
 
+      // 時間軸で一日の幅
+      dayWidth: 1200,
+
       // 送り機能とかで、予めロードする画像の範囲
       Preload: 100,
 
@@ -75,44 +78,42 @@ export default {
 
     // 一時データ (要求：インデックスが順番)
     // LEN = 47082
-    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,30,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0802.png', startDate: new Date(2023,10,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,10,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,10,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,10,7,0,0,0), endDate: new Date(2023,11,10,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,29,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
+    // this.chert.push({ url: 'C0802.png', startDate: new Date(2023,11,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,11,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,11,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
+    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,11,7,0,0,0), endDate: new Date(2023,11,9,0,0,0), len: 2413, height: 615});
     
 
-    // 初期化
-    this.chertNum = 0;
+    // 画面初期化
     this.minDate = this.chert[0].startDate.toLocaleDateString('ja-JP').replaceAll('/','-');
     this.maxDate = this.chert[this.chert.length -1].endDate.toLocaleDateString('ja-JP').replaceAll('/','-');
-    this.selectedDate = this.minDate
-
-    // スクロール最大値設定
-    this.chert.forEach((item) => {
-      item.leftPosition = this.maxScroll
-      this.maxScroll += item.len * (this.maxHeight / item.height);
-    });
-    console.log(this.maxScroll);
-    this.maxScroll -= this.maxWidth;
-
-    // 0.05MB
-    fabric.minCacheSideLimit = 52429;
+    this.selectedDate = this.minDate;
+    this.chertNum = 0;
 
     // canvasのロード
     this.canvas = new fabric.Canvas(this.$refs.canvas, {fireRightClick: true});
     this.canvas.wrapperEl.oncontextmenu = () => false;
 
-    // 最初の図とタイムラインのロード
-    this.loadImage(this.chertNum).then(() => {
-      this.createTimeline();
-      this.createGridLines(100,40);
+    // スクロール最大値設定
+    let day = ((this.chert[this.chert.length -1].endDate - this.chert[0].startDate) / 86400000);
+    this.maxScroll = this.dayWidth * day - this.maxWidth;
+
+    // タイムラインとグリッド線
+    this.createTimeline(this.chert[0].startDate, this.chert[this.chert.length -1].endDate, this.dayWidth * day);
+    this.createGridLines(this.dayWidth / 24, 25, this.dayWidth * day);
+
+    // 各画像の開始位置を算出
+    this.chert.forEach((item) => {
+      console.log(this.timeLine(item.startDate))
+      item.leftPosition = this.timeLine(item.startDate);
     });
+
+    // 0.05MB
+    fabric.minCacheSideLimit = 52429;
+
+    // 最初の図とタイムラインのロード
+    this.loadImage(this.chertNum)
 
     // プリロード
     for (let i = 0; i < this.chert.length; i++) {
@@ -137,7 +138,8 @@ export default {
         fabric.Image.fromURL(this.images('./' + this.chert[chertNum].url), (img) => {
 
           // 初期ズーム
-          img.scale(this.maxHeight / img.height);
+          img.scaleY = this.maxHeight / img.height;
+          img.scaleX = this.dayWidth * (this.chert[chertNum].endDate - this.chert[chertNum].startDate) / 86400000 / img.width;
 
           if(this.overImg) {
 
@@ -179,13 +181,14 @@ export default {
 
     /** 
     * タイムライン作成
+    * 
     */
-    createTimeline() {
+    createTimeline(startDate, endDate, length) {
 
       // ライン作成
       let scale = d3.scaleTime()
-        .domain([this.chert[0].startDate, this.chert[this.chert.length -1].endDate])
-        .range([0, this.maxScroll + this.maxWidth]);
+        .domain([startDate, endDate])
+        .range([0, length]);
 
       // 尺度作成
       let axis = d3.axisBottom(scale)
@@ -238,7 +241,7 @@ export default {
     /** 
     * グリッド線作成
     */
-    createGridLines(gridWidth, gridHeight) {
+    createGridLines(gridWidth, gridHeight, length) {
       let gridLines = [];
 
       // 線の仕様
@@ -250,13 +253,13 @@ export default {
       };
 
       // 縦
-      for (let i = gridWidth; i <  this.maxScroll + this.maxWidth; i += gridWidth) {
-        gridLines.push(new fabric.Line([i, 0, i, this.overImg.height * (this.maxHeight / this.overImg.height)], opt));
+      for (let i = gridWidth; i <  length; i += gridWidth) {
+        gridLines.push(new fabric.Line([i, 0, i, this.maxHeight], opt));
       }
 
       // 横
-      for (let i = gridHeight; i < this.overImg.height * (this.maxHeight / this.overImg.height); i += gridHeight) {
-        gridLines.push(new fabric.Line([0, i, this.maxScroll + this.maxWidth, i], opt));
+      for (let i = gridHeight; i < this.maxHeight; i += gridHeight) {
+        gridLines.push(new fabric.Line([0, i, length, i], opt));
       }
 
       // fabricのオプション
