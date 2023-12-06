@@ -9,7 +9,7 @@
     <button @click="stopMoving">停止</button>
     <button @click="moveRight">送り</button> |
     <button @click="copyToClipboard">コピー</button> |
-    <input type="date" :min="minDate" :max="maxDate" v-model="selectedDate"/>
+    <input type="date" :min="minDate" max="maxDate" v-model="selectedDate"/>
     <button @click="goByDate">Go</button>
     
   </div>
@@ -45,12 +45,15 @@ export default {
       // チャート
       chert: [],
       chertNum: 0,
+      // 時刻基点情報
+      timeBase: [],
 
       /** 
       * パラメータ
       */
       images: require.context('@/assets/', false, /\.png$/),
-      isTimePosMode: false,
+      isTimeBaseMode: true,
+      cutParts: [],
 
       // canvas
       canvas: null,
@@ -76,18 +79,24 @@ export default {
   },
   mounted() {
 
-    // 一時データ (要求：インデックスが順番)
+    // 画像情報
     // LEN = 47082
-    this.chert.push({ url: 'C0801.png', startDate: new Date(2023,10,29,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
-    // this.chert.push({ url: 'C0802.png', startDate: new Date(2023,11,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0803.png', startDate: new Date(2023,11,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0804.png', startDate: new Date(2023,11,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
-    this.chert.push({ url: 'C0805.png', startDate: new Date(2023,11,7,0,0,0), endDate: new Date(2023,11,9,0,0,0), len: 2413, height: 615});
-    
+    this.chert.push({id: 'C0801', url: 'C0801.png', startDate: new Date(2023,10,29,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
+    this.chert.push({id: 'C0802', url: 'C0802.png', startDate: new Date(2023,11,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
+    this.chert.push({id: 'C0803', url: 'C0803.png', startDate: new Date(2023,11,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
+    this.chert.push({id: 'C0804', url: 'C0804.png', startDate: new Date(2023,11,5,0,0,0), endDate: new Date(2023,11,7,0,0,0), len: 2413, height: 615});
+    this.chert.push({id: 'C0805', url: 'C0805.png', startDate: new Date(2023,11,7,0,0,0), endDate: new Date(2023,11,9,0,0,0), len: 2413, height: 615});
 
+    // 時刻基点情報
+    this.timeBase.push({ form: 'C0803', Date: new Date(2023,11,3,9,0,0), type: 0});
+    this.timeBase.push({ form: 'C0804', Date: new Date(2023,11,6,18,0,0), type: 1});
+    this.timeBase.push({ form: 'C0805', Date: new Date(2023,11,7,9,0,0), type: 0});
+    this.timeBase.push({ form: 'C0805', Date: new Date(2023,11,8,18,0,0), type: 1});
+    
     // 画面初期化
     this.minDate = this.chert[0].startDate.toLocaleDateString('ja-JP').replaceAll('/','-');
     this.maxDate = this.chert[this.chert.length -1].endDate.toLocaleDateString('ja-JP').replaceAll('/','-');
+    console.log(this.maxDate)
     this.selectedDate = this.minDate;
     this.chertNum = 0;
 
@@ -103,27 +112,50 @@ export default {
     this.createTimeline(this.chert[0].startDate, this.chert[this.chert.length -1].endDate, this.dayWidth * day);
     this.createGridLines(this.dayWidth / 24, 25, this.dayWidth * day);
 
-    // 各画像の開始位置を算出
-    this.chert.forEach((item) => {
-      console.log(this.timeLine(item.startDate))
-      item.leftPosition = this.timeLine(item.startDate);
-    });
+    // 時間基点ベースの場合 各画像の画像開始位置を算出 スクロール最大値再計算 時間軸のカット
+    if(this.isTimeBaseMode) {
+
+      let cutTal = 0;
+      for (let i = 0; i < this.chert.length; i++) {
+
+        // 画像開始位置設定
+        this.chert[i].leftPosition = this.timeLine(this.chert[i].startDate) - cutTal;
+
+        // 時間基点情報検索
+        let timeBaseInfo = this.timeBase.filter(item =>  item.form == this.chert[i].id);
+
+        timeBaseInfo.forEach((item) => {
+          // 開始位置の場合
+          if (!item.type) {
+            cutTal += this.timeLine(item.Date) - this.timeLine(this.chert[i].startDate);
+            this.cutParts.push({ start: this.timeLine(this.chert[i].startDate), size: this.timeLine(item.Date) - this.timeLine(this.chert[i].startDate)});
+          }
+          // 終了位置の場合
+          else {
+            cutTal += this.timeLine(this.chert[i].endDate) - this.timeLine(item.Date);
+            this.cutParts.push({ start: this.timeLine(item.Date), size: this.timeLine(this.chert[i].endDate) - this.timeLine(item.Date)});
+          }
+        });
+      }
+
+      // スクロール最大値再計算
+      this.maxScroll -= cutTal;
+    }
+    // 時間基点ベースではない場合 各画像の画像開始位置を算出
+    else {
+      this.chert.forEach((item) => {
+        item.leftPosition = this.timeLine(item.startDate);
+      });
+    }
+
+    // 時間軸の画像を作成
+    this.createTimelineImg(this.timeLine)
 
     // 0.05MB
     fabric.minCacheSideLimit = 52429;
 
     // 最初の図とタイムラインのロード
-    this.loadImage(this.chertNum)
-
-    // プリロード
-    for (let i = 0; i < this.chert.length; i++) {
-      if (this.chert[i].leftPosition < this.maxWidth + this.Preload) {
-        this.loadImage(i);
-      }
-      else {
-        break;
-      }
-    }
+    this.loadImage(this.chertNum);
 
     this.setupEvents();
   },
@@ -133,46 +165,80 @@ export default {
      * 図のロード
     */
     loadImage(chertNum) {
-
       return new Promise((resolve) => {
         fabric.Image.fromURL(this.images('./' + this.chert[chertNum].url), (img) => {
 
-          // 初期ズーム
-          img.scaleY = this.maxHeight / img.height;
-          img.scaleX = this.dayWidth * (this.chert[chertNum].endDate - this.chert[chertNum].startDate) / 86400000 / img.width;
+          // 初期ズームデータ
+          let scaleY = this.maxHeight / img.height;
+          let scaleX = this.dayWidth * (this.chert[chertNum].endDate - this.chert[chertNum].startDate) / 86400000 / img.width;
 
-          if(this.overImg) {
+          // クリッピングパラメータ
+          let imgElement = img.getElement();
 
-            img.set({
-              left: this.chert[chertNum].leftPosition + this.overImg.left,
-              selectable: false
-            });
-
-            let group = new fabric.Group([this.overImg, img]);
-            group.selectable = false;
-
-            this.overImg = group
-          }
-          else {
-
-            img.set({
-              left: this.chert[chertNum].leftPosition,
-              selectable: false
-            });
-
-            img.selectable = false;
-            this.overImg = img
+          // 剪裁参数
+          let clipLeft = 0;
+          let leftCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 0);
+          if (leftCutPart) {
+            clipLeft = this.timeLine(leftCutPart.Date) - this.timeLine(this.chert[chertNum].startDate);
           }
           
-          this.loadedImg.push({num: chertNum, img: img})
-          this.canvas.add(img);
+          let clipWidth = img.width - clipLeft;
+          let rightCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 1);
+          if (rightCutPart) {
+            clipWidth -= this.timeLine(this.chert[chertNum].endDate) - this.timeLine(rightCutPart.Date);
+          }
 
-          if(this.timeLineImg) {
-            this.timeLineImg.bringToFront();
-          }
-          if(this.gridLine) {
-            this.gridLine.bringToFront();
-          }
+          // 一時的Canvasを作成
+          let tempCanvas = document.createElement('canvas');
+          let ctx = tempCanvas.getContext('2d');
+          tempCanvas.width = clipWidth;
+          tempCanvas.height = img.height;
+
+          // 画像を描き
+          ctx.drawImage(imgElement, clipLeft, 0, clipWidth, img.height, 0, 0, clipWidth, img.height);
+
+          // DataURLに変換
+          let dataURL = tempCanvas.toDataURL();
+
+          // クリッピング後の画像でfabric.Imageを作成する
+          fabric.Image.fromURL(dataURL, (img) => {
+
+            if(this.overImg) {
+
+              img.set({
+                scaleX: scaleX,
+                scaleY: scaleY,
+                left: this.chert[chertNum].leftPosition + this.overImg.left,
+                selectable: false
+              });
+
+              let group = new fabric.Group([this.overImg, img]);
+              group.selectable = false;
+
+              this.overImg = group
+            }
+            else {
+
+              img.set({
+                scaleX: scaleX,
+                scaleY: scaleY,
+                left: this.chert[chertNum].leftPosition,
+                selectable: false
+              });
+
+              this.overImg = img
+            }
+            
+            this.loadedImg.push({num: chertNum, img: img})
+            this.canvas.add(img);
+
+            if(this.timeLineImg) {
+              this.timeLineImg.bringToFront();
+            }
+            if(this.gridLine) {
+              this.gridLine.bringToFront();
+            }
+          })
 
           resolve();
         });
@@ -189,6 +255,14 @@ export default {
       let scale = d3.scaleTime()
         .domain([startDate, endDate])
         .range([0, length]);
+
+      this.timeLine = scale;
+    },
+
+    /** 
+    * タイムライン画像作成
+    */
+    createTimelineImg(scale) {
 
       // 尺度作成
       let axis = d3.axisBottom(scale)
@@ -215,6 +289,30 @@ export default {
       // svgオブジェクトを文字列に変更
       let svgString = new XMLSerializer().serializeToString(svg.node());
 
+      // 時刻基点モードで時間軸をカットする
+      if (this.isTimeBaseMode) {
+
+        svgString = svgString.replace(/translate\((\d+),(\d+)\)/g, (match, p1, p2) => {
+
+          let totalCutSize = this.cutParts
+            .filter(part => parseInt(p1) > part.start)
+            .reduce((sum, current) => sum + current.size, 0);
+
+          let newp1 = parseInt(p1) - totalCutSize;
+          return `translate(${newp1},${p2})`;
+        });
+
+        svgString = svgString.replace(/H(\d+)/g, (match, p1) => {
+
+          let totalCutSize = this.cutParts
+            .filter(part => parseInt(p1) > part.start)
+            .reduce((sum, current) => sum + current.size, 0);
+
+          let newp1 = parseInt(p1) - totalCutSize;
+          return `H${newp1}`;
+        });
+      }
+
       // svg文字列とfabric対象に変更
       fabric.loadSVGFromString(svgString, (objects, options) => {
         let group = fabric.util.groupSVGElements(objects, options);
@@ -233,7 +331,6 @@ export default {
 
         // canvasに描き
         this.timeLineImg = group;
-        this.timeLine = scale;
         this.canvas.add(group);
       });
     },
@@ -381,7 +478,14 @@ export default {
         let day = parseInt(parts[2], 10);
 
         if(this.timeLine(new Date(year,month,day,0,0,0)) <= this.maxScroll) {
+          
           this.scrollPosition = this.timeLine(new Date(year,month,day,0,0,0));
+
+          for (let i = this.cutParts.length - 1; i >= 0; i--) {
+            if (this.cutParts[i].start < this.scrollPosition) {
+              this.scrollPosition -= this.cutParts[i].size
+            }
+          }
           this.scrollImage();
         }
         else {
@@ -418,7 +522,7 @@ export default {
     },
 
     /** 
-     * レスナー
+     * レスナー(拡大機能)
     */
     setupEvents() {
 
