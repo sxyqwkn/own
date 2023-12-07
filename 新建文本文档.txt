@@ -80,7 +80,6 @@ export default {
   mounted() {
 
     // 画像情報
-    // LEN = 47082
     this.chert.push({id: 'C0801', url: 'C0801.png', startDate: new Date(2023,10,29,0,0,0), endDate: new Date(2023,11,1,0,0,0), len: 2413, height: 615});
     this.chert.push({id: 'C0802', url: 'C0802.png', startDate: new Date(2023,11,1,0,0,0), endDate: new Date(2023,11,3,0,0,0), len: 2413, height: 615});
     this.chert.push({id: 'C0803', url: 'C0803.png', startDate: new Date(2023,11,3,0,0,0), endDate: new Date(2023,11,5,0,0,0), len: 2413, height: 615});
@@ -171,77 +170,76 @@ export default {
           let scaleY = this.maxHeight / img.height;
           let scaleX = this.dayWidth * (this.chert[chertNum].endDate - this.chert[chertNum].startDate) / 86400000 / img.width;
 
-          // クリッピングパラメータ
-          let imgElement = img.getElement();
-
-          // 剪裁参数
-          let clipLeft = 0;
           if(this.isTimeBaseMode) {
+            // クリッピングパラメータ
+            let imgElement = img.getElement();
+
+            let clipLeft = 0;
             let leftCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 0);
             if (leftCutPart) {
               clipLeft = this.timeLine(leftCutPart.Date) - this.timeLine(this.chert[chertNum].startDate);
             }
-          }
-          
-          let clipWidth = img.width - clipLeft;
-          if(this.isTimeBaseMode) {
+            
+            let clipWidth = img.width - clipLeft;
             let rightCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 1);
             if (rightCutPart) {
               clipWidth -= this.timeLine(this.chert[chertNum].endDate) - this.timeLine(rightCutPart.Date);
             }
+
+            // 一時的Canvasを作成
+            let tempCanvas = document.createElement('canvas');
+            let ctx = tempCanvas.getContext('2d');
+            tempCanvas.width = clipWidth;
+            tempCanvas.height = img.height;
+
+            // 画像を描き
+            ctx.drawImage(imgElement, clipLeft, 0, clipWidth, img.height, 0, 0, clipWidth, img.height);
+
+            // DataURLに変換
+            let dataURL = tempCanvas.toDataURL();
+
+            // クリッピング後の画像でfabric.Imageを作成する
+            fabric.Image.fromURL(dataURL, (imgTimeBase) => {
+              img = imgTimeBase;
+            })
           }
+          
+          if(this.overImg) {
 
-          // 一時的Canvasを作成
-          let tempCanvas = document.createElement('canvas');
-          let ctx = tempCanvas.getContext('2d');
-          tempCanvas.width = clipWidth;
-          tempCanvas.height = img.height;
+            img.set({
+              scaleX: scaleX,
+              scaleY: scaleY,
+              left: this.chert[chertNum].leftPosition + this.overImg.left,
+              selectable: false
+            });
 
-          // 画像を描き
-          ctx.drawImage(imgElement, clipLeft, 0, clipWidth, img.height, 0, 0, clipWidth, img.height);
+            let group = new fabric.Group([this.overImg, img]);
+            group.selectable = false;
 
-          // DataURLに変換
-          let dataURL = tempCanvas.toDataURL();
+            this.overImg = group
+          }
+          else {
 
-          // クリッピング後の画像でfabric.Imageを作成する
-          fabric.Image.fromURL(dataURL, (img) => {
+            img.set({
+              scaleX: scaleX,
+              scaleY: scaleY,
+              left: this.chert[chertNum].leftPosition,
+              selectable: false
+            });
 
-            if(this.overImg) {
+            this.overImg = img
+          }
+          
+          this.loadedImg.push({num: chertNum, img: img})
+          this.canvas.add(img);
 
-              img.set({
-                scaleX: scaleX,
-                scaleY: scaleY,
-                left: this.chert[chertNum].leftPosition + this.overImg.left,
-                selectable: false
-              });
-
-              let group = new fabric.Group([this.overImg, img]);
-              group.selectable = false;
-
-              this.overImg = group
-            }
-            else {
-
-              img.set({
-                scaleX: scaleX,
-                scaleY: scaleY,
-                left: this.chert[chertNum].leftPosition,
-                selectable: false
-              });
-
-              this.overImg = img
-            }
-            
-            this.loadedImg.push({num: chertNum, img: img})
-            this.canvas.add(img);
-
-            if(this.timeLineImg) {
-              this.timeLineImg.bringToFront();
-            }
-            if(this.gridLine) {
-              this.gridLine.bringToFront();
-            }
-          })
+          if(this.timeLineImg) {
+            this.timeLineImg.bringToFront();
+          }
+          if(this.gridLine) {
+            this.gridLine.bringToFront();
+          }
+          
 
           resolve();
         });
