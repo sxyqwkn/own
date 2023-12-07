@@ -9,7 +9,7 @@
     <button @click="stopMoving">停止</button>
     <button @click="moveRight">送り</button> |
     <button @click="copyToClipboard">コピー</button> |
-    <input type="date" :min="minDate" max="maxDate" v-model="selectedDate"/>
+    <input type="date" :min="minDate" :max="maxDate" v-model="selectedDate"/>
     <button @click="goByDate">Go</button>
     
   </div>
@@ -94,9 +94,8 @@ export default {
     this.timeBase.push({ form: 'C0805', Date: new Date(2023,11,8,18,0,0), type: 1});
     
     // 画面初期化
-    this.minDate = this.chert[0].startDate.toLocaleDateString('ja-JP').replaceAll('/','-');
-    this.maxDate = this.chert[this.chert.length -1].endDate.toLocaleDateString('ja-JP').replaceAll('/','-');
-    console.log(this.maxDate)
+    this.minDate = this.formatDate(this.chert[0].startDate);
+    this.maxDate = this.formatDate(this.chert[this.chert.length -1].endDate);
     this.selectedDate = this.minDate;
     this.chertNum = 0;
 
@@ -152,7 +151,7 @@ export default {
     this.createTimelineImg(this.timeLine)
 
     // 0.05MB
-    fabric.minCacheSideLimit = 52429;
+    // fabric.minCacheSideLimit = 52429;
 
     // 最初の図とタイムラインのロード
     this.loadImage(this.chertNum);
@@ -177,15 +176,19 @@ export default {
 
           // 剪裁参数
           let clipLeft = 0;
-          let leftCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 0);
-          if (leftCutPart) {
-            clipLeft = this.timeLine(leftCutPart.Date) - this.timeLine(this.chert[chertNum].startDate);
+          if(this.isTimeBaseMode) {
+            let leftCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 0);
+            if (leftCutPart) {
+              clipLeft = this.timeLine(leftCutPart.Date) - this.timeLine(this.chert[chertNum].startDate);
+            }
           }
           
           let clipWidth = img.width - clipLeft;
-          let rightCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 1);
-          if (rightCutPart) {
-            clipWidth -= this.timeLine(this.chert[chertNum].endDate) - this.timeLine(rightCutPart.Date);
+          if(this.isTimeBaseMode) {
+            let rightCutPart = this.timeBase.find(item => item.form == this.chert[chertNum].id && item.type == 1);
+            if (rightCutPart) {
+              clipWidth -= this.timeLine(this.chert[chertNum].endDate) - this.timeLine(rightCutPart.Date);
+            }
           }
 
           // 一時的Canvasを作成
@@ -326,7 +329,10 @@ export default {
           lockRotation: true,
           lockScalingX: true,
           lockScalingY: true,
-          opacity: 0.8
+          opacity: 0.8,
+
+          // Cache禁止
+          objectCaching: false,
         });
 
         // canvasに描き
@@ -362,7 +368,10 @@ export default {
       // fabricのオプション
       let gridGroup = new fabric.Group(gridLines, {
         selectable: false,
-        evented: false
+        evented: false,
+
+        // Cache禁止
+        objectCaching: false,
       });
 
       // canvasに描き
@@ -478,7 +487,7 @@ export default {
         let day = parseInt(parts[2], 10);
 
         if(this.timeLine(new Date(year,month,day,0,0,0)) <= this.maxScroll) {
-          
+
           this.scrollPosition = this.timeLine(new Date(year,month,day,0,0,0));
 
           for (let i = this.cutParts.length - 1; i >= 0; i--) {
@@ -550,6 +559,16 @@ export default {
           opt.e.stopPropagation();
       });
     },
+
+    formatDate(date) {
+      var year = date.getFullYear();
+      var month = date.getMonth() + 1;
+      var day = date.getDate();
+
+      month = month < 10 ? '0' + month : month;
+      day = day < 10 ? '0' + day : day;
+      return year + '-' + month + '-' + day;
+    }
 
   },
 
