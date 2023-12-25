@@ -1,1 +1,43 @@
+Sub CompareCellsBetweenWorkbooks()
 
+    Dim sWb As Workbook, tWb As Workbook
+    Dim sWs As Worksheet, tWs As Worksheet
+    Dim sPathToDoc As String, tPathToDoc As String
+    Dim sColToSearch As Integer, tColToSearch As Integer
+    Dim sRowStart As Integer, sRowEnd As Integer
+    Dim tRowStart As Integer, tRowEnd As Integer
+    Dim sCell As Range, tCell As Range
+    Dim i As Integer, j As Integer
+
+    sPathToDoc = "F:\a.xlsx"
+    sSheet = 1
+    sColToSearch = 1
+    sRowStart = 9
+    sRowEnd = 13
+    sColToWrite = 2
+    
+    tPathToDoc = "F:\b.xlsx"
+    tSheet = 1
+    tColToSearch = 2
+    tRowStart = 1
+    tRowEnd = 5
+    tColToRead = 3
+
+
+    Set sWb = Workbooks.Open(sPathToDoc)
+    Set tWb = Workbooks.Open(tPathToDoc)
+    Set sWs = sWb.Sheets(sSheet)
+    Set tWs = tWb.Sheets(tSheet)
+
+
+    For i = sRowStart To sRowEnd
+        Set sCell = sWs.Cells(i, sColToSearch)
+        For j = tRowStart To tRowEnd
+            Set tCell = tWs.Cells(j, tColToSearch)
+            If sCell.Value = tCell.Value Then
+                sWs.Cells(i, sColToWrite).Value = tWs.Cells(j, tColToRead).Value
+            End If
+        Next j
+    Next i
+
+End Sub
