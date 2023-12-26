@@ -1,14 +1,15 @@
 Sub CompareCellsBetweenWorkbooks()
-
     Dim sWb As Workbook, tWb As Workbook
     Dim sWs As Worksheet, tWs As Worksheet
-    Dim sPathToDoc As String, tPathToDoc As String
+    Dim sPathToDoc As String, tFolderPath As String
     Dim sColToSearch As Integer, tColToSearch As Integer
     Dim sRowStart As Integer, sRowEnd As Integer
     Dim tRowStart As Integer, tRowEnd As Integer
     Dim sCell As Range, tCell As Range
     Dim i As Integer, j As Integer
+    Dim fs As Object, folder As Object, file As Object
 
+    ' Source Workbook
     sPathToDoc = "F:\a.xlsx"
     sSheet = 1
     sColToSearch = 1
@@ -16,28 +17,40 @@ Sub CompareCellsBetweenWorkbooks()
     sRowEnd = 13
     sColToWrite = 2
     
-    tPathToDoc = "F:\b.xlsx"
+    ' Target Folder
+    tFolderPath = "F:\TargetFolder\" ' 修改为目标文件夹路径
     tSheet = 1
     tColToSearch = 2
     tRowStart = 1
     tRowEnd = 5
     tColToRead = 3
 
-
     Set sWb = Workbooks.Open(sPathToDoc)
-    Set tWb = Workbooks.Open(tPathToDoc)
     Set sWs = sWb.Sheets(sSheet)
-    Set tWs = tWb.Sheets(tSheet)
 
+    ' FileSystemObject 初始化
+    Set fs = CreateObject("Scripting.FileSystemObject")
+    Set folder = fs.GetFolder(tFolderPath)
 
-    For i = sRowStart To sRowEnd
-        Set sCell = sWs.Cells(i, sColToSearch)
-        For j = tRowStart To tRowEnd
-            Set tCell = tWs.Cells(j, tColToSearch)
-            If sCell.Value = tCell.Value Then
-                sWs.Cells(i, sColToWrite).Value = tWs.Cells(j, tColToRead).Value
-            End If
-        Next j
-    Next i
+    ' 遍历文件夹中的所有文件
+    For Each file In folder.Files
+        If fs.GetExtensionName(file.Name) = "xlsx" Then ' 确保文件是 Excel 文件
+            Set tWb = Workbooks.Open(file.Path)
+            Set tWs = tWb.Sheets(tSheet)
 
+            For i = sRowStart To sRowEnd
+                Set sCell = sWs.Cells(i, sColToSearch)
+                For j = tRowStart To tRowEnd
+                    Set tCell = tWs.Cells(j, tColToSearch)
+                    If sCell.Value = tCell.Value Then
+                        sWs.Cells(i, sColToWrite).Value = tWs.Cells(j, tColToRead).Value
+                    End If
+                Next j
+            Next i
+
+            tWb.Close False
+        End If
+    Next file
+
+    sWb.Close False
 End Sub
