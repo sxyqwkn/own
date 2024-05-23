@@ -1,56 +1,61 @@
-Sub CompareCellsBetweenWorkbooks()
-    Dim sWb As Workbook, tWb As Workbook
-    Dim sWs As Worksheet, tWs As Worksheet
-    Dim sPathToDoc As String, tFolderPath As String
-    Dim sColToSearch As Integer, tColToSearch As Integer
-    Dim sRowStart As Integer, sRowEnd As Integer
-    Dim tRowStart As Integer, tRowEnd As Integer
-    Dim sCell As Range, tCell As Range
-    Dim i As Integer, j As Integer
-    Dim fs As Object, folder As Object, file As Object
+Option Explicit
 
-    ' Source Workbook
-    sPathToDoc = "F:\a.xlsx"
-    sSheet = 1
-    sColToSearch = 1
-    sRowStart = 9
-    sRowEnd = 13
-    sColToWrite = 2
+' 全局变量
+Dim folderPath As String
+Dim outputFilePath As String
+
+Sub ProcessFiles()
+    ' 定义文件夹路径和写入文件路径
+    folderPath = "C:\Your\Folder\Path\" ' 请替换为实际的文件夹路径
+    outputFilePath = "C:\Your\Output\File.xlsx" ' 请替换为实际的写入文件路径
+
+    ' 创建写入文件对象
+    Dim outputWb As Workbook
+    Set outputWb = Workbooks.Open(outputFilePath)
     
-    ' Target Folder
-    tFolderPath = "F:\TargetFolder\" ' 修改为目标文件夹路径
-    tSheet = 1
-    tColToSearch = 2
-    tRowStart = 1
-    tRowEnd = 5
-    tColToRead = 3
+    ' 获取Sheet1
+    Dim outputWs As Worksheet
+    Set outputWs = outputWb.Sheets("Sheet1")
 
-    Set sWb = Workbooks.Open(sPathToDoc)
-    Set sWs = sWb.Sheets(sSheet)
-
-    ' FileSystemObject 初始化
-    Set fs = CreateObject("Scripting.FileSystemObject")
-    Set folder = fs.GetFolder(tFolderPath)
-
-    ' 遍历文件夹中的所有文件
-    For Each file In folder.Files
-        If fs.GetExtensionName(file.Name) = "xlsx" Then ' 确保文件是 Excel 文件
-            Set tWb = Workbooks.Open(file.Path)
-            Set tWs = tWb.Sheets(tSheet)
-
-            For i = sRowStart To sRowEnd
-                Set sCell = sWs.Cells(i, sColToSearch)
-                For j = tRowStart To tRowEnd
-                    Set tCell = tWs.Cells(j, tColToSearch)
-                    If sCell.Value = tCell.Value Then
-                        sWs.Cells(i, sColToWrite).Value = tWs.Cells(j, tColToRead).Value
-                    End If
-                Next j
+    ' 遍历文件夹中的所有xlsx文件
+    Dim fileName As String
+    fileName = Dir(folderPath & "*.xlsx")
+    
+    Do While fileName <> ""
+        ' 打开当前文件
+        Dim wb As Workbook
+        Set wb = Workbooks.Open(folderPath & fileName)
+        
+        ' 检查是否存在“画面項目定義”工作表
+        Dim ws As Worksheet
+        On Error Resume Next
+        Set ws = wb.Sheets("画面項目定義")
+        On Error GoTo 0
+        
+        If Not ws Is Nothing Then
+            ' 遍历AC6到AC100
+            Dim i As Integer
+            For i = 6 To 100
+                If IsEmpty(ws.Range("AC" & i).Value) Then
+                    ' 找到空单元格，记录信息
+                    Dim newRow As Long
+                    newRow = outputWs.Cells(outputWs.Rows.Count, 1).End(xlUp).Row + 1
+                    
+                    outputWs.Cells(newRow, 1).Value = fileName
+                    outputWs.Cells(newRow, 2).Value = ws.Cells(i, 1).Value
+                    outputWs.Cells(newRow, 3).Value = ws.Cells(i, 3).Value
+                End If
             Next i
-
-            tWb.Close False
         End If
-    Next file
-
-    sWb.Close False
+        
+        ' 关闭当前文件
+        wb.Close SaveChanges:=False
+        
+        ' 获取下一个文件
+        fileName = Dir
+    Loop
+    
+    ' 保存并关闭写入文件
+    outputWb.Save
+    outputWb.Close
 End Sub
